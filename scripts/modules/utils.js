@@ -229,25 +229,30 @@ function sanitizePrompt(prompt) {
 }
 
 /**
- * Reads and parses the complexity report if it exists
- * @param {string} customPath - Optional custom path to the report
- * @returns {Object|null} The parsed complexity report or null if not found
+ * Reads and parses the complexity report if it exists.
+ * The caller is responsible for providing the correct, resolved path.
+ * @param {string} reportPath - The absolute path to the complexity report file.
+ * @returns {Object|null} The parsed complexity report or null if not found or path is not provided.
  */
-function readComplexityReport(customPath = null) {
+function readComplexityReport(reportPath) {
 	// Get debug flag dynamically from config-manager
 	const isDebug = getDebugFlag();
+
+	if (!reportPath) {
+		log('debug', 'No reportPath provided to readComplexityReport.');
+		return null;
+	}
+
 	try {
-		const reportPath =
-			customPath ||
-			path.join(process.cwd(), 'scripts', 'task-complexity-report.json');
 		if (!fs.existsSync(reportPath)) {
+			log('debug', `Complexity report not found at: ${reportPath}`);
 			return null;
 		}
 
 		const reportData = fs.readFileSync(reportPath, 'utf8');
 		return JSON.parse(reportData);
 	} catch (error) {
-		log('warn', `Could not read complexity report: ${error.message}`);
+		log('warn', `Could not read or parse complexity report from ${reportPath}: ${error.message}`);
 		// Optionally log full error in debug mode
 		if (isDebug) {
 			// Use dynamic debug flag

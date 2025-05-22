@@ -45,7 +45,13 @@ export function registerExpandTaskTool(server) {
 				.boolean()
 				.optional()
 				.default(false)
-				.describe('Force expansion even if subtasks exist')
+				.describe('Force expansion even if subtasks exist'),
+			complexityReportFile: z // New parameter
+				.string()
+				.optional()
+				.describe(
+					'Path to the complexity report file, relative to project root. Overrides configured path.'
+				)
 		}),
 		execute: withNormalizedProjectRoot(async (args, { log, session }) => {
 			try {
@@ -73,7 +79,8 @@ export function registerExpandTaskTool(server) {
 						research: args.research,
 						prompt: args.prompt,
 						force: args.force,
-						projectRoot: args.projectRoot
+						projectRoot: args.projectRoot,
+						complexityReportFile: args.complexityReportFile // Pass new arg
 					},
 					log,
 					{ session }

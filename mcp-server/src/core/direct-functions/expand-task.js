@@ -203,6 +203,7 @@ export async function expandTaskDirect(args, log, context = {}) {
 					mcpLog,
 					session,
 					projectRoot,
+					complexityReportFile: args.complexityReportFile, // Pass this through
 					commandName: 'expand-task',
 					outputType: 'mcp'
 				},

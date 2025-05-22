@@ -693,13 +693,14 @@ function registerCommands(programInstance) {
 				);
 			}
 
-			// Call core updateTasks, passing empty context for CLI
+			// Call core updateTasks, passing projectRoot in context for CLI
+			const projectRootForUpdate = findProjectRoot() || process.cwd();
 			await updateTasks(
 				tasksPath,
 				fromId,
 				prompt,
 				useResearch,
-				{} // Pass empty context
+				{ projectRoot: projectRootForUpdate } 
 			);
 		});
 
@@ -1072,17 +1073,19 @@ function registerCommands(programInstance) {
 	programInstance
 		.command('list')
 		.description('List all tasks')
-		.option('-f, --file <file>', 'Path to the tasks file', 'tasks/tasks.json')
+		.option('-f, --tasks-file <tasks_file_path>', 'Path to the tasks file', 'tasks/tasks.json')
 		.option(
-			'-r, --report <report>',
-			'Path to the complexity report file',
-			'scripts/task-complexity-report.json'
+			'-r, --report-path <file_path>',
+			'Path to the complexity report file (defaults to path in .taskmasterconfig or scripts/task-complexity-report.json)'
 		)
 		.option('-s, --status <status>', 'Filter by status')
 		.option('--with-subtasks', 'Show subtasks for each task')
 		.action(async (options) => {
-			const tasksPath = options.file;
-			const reportPath = options.report;
+			const projectRoot = findProjectRoot() || process.cwd();
+			const tasksPath = path.resolve(projectRoot, options.tasks_file); // options.tasks_file from original, assuming it's correct alias for tasks_file_path
+			const reportPath = options.report_path
+				? path.resolve(projectRoot, options.report_path)
+				: path.resolve(projectRoot, getComplexityReportPath(projectRoot));
 			const statusFilter = options.status;
 			const withSubtasks = options.withSubtasks || false;
 
@@ -1123,26 +1126,30 @@ function registerCommands(programInstance) {
 			'tasks/tasks.json'
 		) // Allow file override
 		.action(async (options) => {
-			const projectRoot = findProjectRoot();
-			if (!projectRoot) {
-				console.error(chalk.red('Error: Could not find project root.'));
-				process.exit(1);
-			}
-			const tasksPath = path.resolve(projectRoot, options.file); // Resolve tasks path
+			const projectRoot = findProjectRoot() || process.cwd(); // Ensure projectRoot is resolved
+			// Ensure tasksPath is resolved relative to projectRoot
+			const tasksPath = path.resolve(projectRoot, options.file); 
+
+			const commandContext = {
+				projectRoot, // Pass resolved projectRoot
+				session: null, // CLI context doesn't have a session
+				// If 'expand' command had a --complexity-report-path <path> option, it would be:
+				// complexityReportFile: options.someOptionNameForComplexityReport
+				// Since it doesn't, expandTask (called by expandAllTasks or directly) 
+				// will use getComplexityReportPath(projectRoot) from this context.
+			};
 
 			if (options.all) {
 				// --- Handle expand --all ---
 				console.log(chalk.blue('Expanding all pending tasks...'));
-				// Updated call to the refactored expandAllTasks
 				try {
 					const result = await expandAllTasks(
 						tasksPath,
-						options.num, // Pass num
-						options.research, // Pass research flag
-						options.prompt, // Pass additional context
-						options.force, // Pass force flag
-						{} // Pass empty context for CLI calls
-						// outputFormat defaults to 'text' in expandAllTasks for CLI
+						options.num, 
+						options.research, 
+						options.prompt, 
+						options.force, 
+						commandContext // Pass context with projectRoot
 					);
 				} catch (error) {
 					console.error(
@@ -1151,8 +1158,8 @@ function registerCommands(programInstance) {
 					process.exit(1);
 				}
 			} else if (options.id) {
-				// --- Handle expand --id <id> (Should be correct from previous refactor) ---
-				if (!options.id) {
+				// --- Handle expand --id <id> ---
+				if (!options.id) { 
 					console.error(
 						chalk.red('Error: Task ID is required unless using --all.')
 					);
@@ -1161,17 +1168,15 @@ function registerCommands(programInstance) {
 
 				console.log(chalk.blue(`Expanding task ${options.id}...`));
 				try {
-					// Call the refactored expandTask function
 					await expandTask(
 						tasksPath,
 						options.id,
 						options.num,
 						options.research,
 						options.prompt,
-						{}, // Pass empty context for CLI calls
-						options.force // Pass the force flag down
+						commandContext, // Pass context with projectRoot
+						options.force 
 					);
-					// expandTask logs its own success/failure for single task
 				} catch (error) {
 					console.error(
 						chalk.red(`Error expanding task ${options.id}: ${error.message}`)
@@ -1389,15 +1394,17 @@ function registerCommands(programInstance) {
 		.description(
 			`Show the next task to work on based on dependencies and status${chalk.reset('')}`
 		)
-		.option('-f, --file <file>', 'Path to the tasks file', 'tasks/tasks.json')
+		.option('-f, --tasks-file <tasks_file_path>', 'Path to the tasks file', 'tasks/tasks.json')
 		.option(
-			'-r, --report <report>',
-			'Path to the complexity report file',
-			'scripts/task-complexity-report.json'
+			'-r, --report-path <file_path>',
+			'Path to the complexity report file (defaults to path in .taskmasterconfig or scripts/task-complexity-report.json)'
 		)
 		.action(async (options) => {
-			const tasksPath = options.file;
-			const reportPath = options.report;
+			const projectRoot = findProjectRoot() || process.cwd();
+			const tasksPath = path.resolve(projectRoot, options.tasks_file);  // options.tasks_file from original
+			const reportPath = options.report_path
+				? path.resolve(projectRoot, options.report_path)
+				: path.resolve(projectRoot, getComplexityReportPath(projectRoot));
 			await displayNextTask(tasksPath, reportPath);
 		});
 
@@ -1409,25 +1416,26 @@ function registerCommands(programInstance) {
 		)
 		.argument('[id]', 'Task ID to show')
 		.option('-i, --id <id>', 'Task ID to show')
-		.option('-s, --status <status>', 'Filter subtasks by status') // ADDED status option
-		.option('-f, --file <file>', 'Path to the tasks file', 'tasks/tasks.json')
+		.option('-s, --status <status>', 'Filter subtasks by status')
+		.option('-f, --tasks-file <tasks_file_path>', 'Path to the tasks file', 'tasks/tasks.json')
 		.option(
-			'-r, --report <report>',
-			'Path to the complexity report file',
-			'scripts/task-complexity-report.json'
+			'-r, --report-path <file_path>',
+			'Path to the complexity report file (defaults to path in .taskmasterconfig or scripts/task-complexity-report.json)'
 		)
-		.action(async (taskId, options) => {
-			const idArg = taskId || options.id;
-			const statusFilter = options.status; // ADDED: Capture status filter
+		.action(async (taskIdArg, options) => {
+			const projectRoot = findProjectRoot() || process.cwd();
+			const idArg = taskIdArg || options.id;
+			const statusFilter = options.status;
 
 			if (!idArg) {
 				console.error(chalk.red('Error: Please provide a task ID'));
 				process.exit(1);
 			}
 
-			const tasksPath = options.file;
-			const reportPath = options.report;
-			// PASS statusFilter to the display function
+			const tasksPath = path.resolve(projectRoot, options.tasks_file); // options.tasks_file from original
+			const reportPath = options.report_path
+				? path.resolve(projectRoot, options.report_path)
+				: path.resolve(projectRoot, getComplexityReportPath(projectRoot));
 			await displayTaskById(tasksPath, idArg, reportPath, statusFilter);
 		});
 
@@ -1518,12 +1526,17 @@ function registerCommands(programInstance) {
 		.command('complexity-report')
 		.description(`Display the complexity analysis report${chalk.reset('')}`)
 		.option(
-			'-f, --file <file>',
-			'Path to the report file',
-			'scripts/task-complexity-report.json'
+			'-f, --file <report_file_path>', // Changed option name for clarity
+			'Path to the report file (defaults to path in .taskmasterconfig or scripts/task-complexity-report.json)'
+			// Default removed, will be handled in action
 		)
 		.action(async (options) => {
-			await displayComplexityReport(options.file);
+			const projectRoot = findProjectRoot() || process.cwd();
+			// If options.file (now options.report_file_path) is provided, use it. Otherwise, use the configured/default path.
+			const reportPath = options.report_file_path 
+				? path.resolve(projectRoot, options.report_file_path)
+				: path.resolve(projectRoot, getComplexityReportPath(projectRoot));
+			await displayComplexityReport(reportPath); // Pass the resolved path
 		});
 
 	// add-subtask command

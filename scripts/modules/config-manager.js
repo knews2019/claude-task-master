@@ -62,6 +62,9 @@ const DEFAULTS = {
 		defaultPriority: 'medium',
 		projectName: 'Task Master',
 		ollamaBaseUrl: 'http://localhost:11434/api'
+	},
+	paths: {
+		complexityReport: 'scripts/task-complexity-report.json'
 	}
 };
 
@@ -121,7 +124,8 @@ function _loadAndValidateConfig(explicitRoot = null) {
 							? { ...defaults.models.fallback, ...parsedConfig.models.fallback }
 							: { ...defaults.models.fallback }
 				},
-				global: { ...defaults.global, ...parsedConfig?.global }
+				global: { ...defaults.global, ...parsedConfig?.global },
+				paths: { ...defaults.paths, ...parsedConfig?.paths } // Merge paths object
 			};
 			configSource = `file (${configPath})`; // Update source info
 
@@ -364,6 +368,17 @@ function getProjectName(explicitRoot = null) {
 function getOllamaBaseUrl(explicitRoot = null) {
 	// Directly return value from config
 	return getGlobalConfig(explicitRoot).ollamaBaseUrl;
+}
+
+// --- Paths Getters ---
+function getPathsConfig(explicitRoot = null) {
+	const config = getConfig(explicitRoot);
+	// Ensure paths defaults are applied if paths section is missing
+	return { ...DEFAULTS.paths, ...(config?.paths || {}) };
+}
+
+function getComplexityReportPath(explicitRoot = null) {
+	return getPathsConfig(explicitRoot).complexityReport;
 }
 
 /**
@@ -754,6 +769,9 @@ export {
 	// API Key Checkers (still relevant)
 	isApiKeySet,
 	getMcpApiKeyStatus,
+
+	// Path getters
+	getComplexityReportPath,
 
 	// ADD: Function to get all provider names
 	getAllProviders

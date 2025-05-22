@@ -57,6 +57,12 @@ export function registerExpandAllTool(server) {
 				.optional()
 				.describe(
 					'Absolute path to the project root directory (derived from session if possible)'
+				),
+			complexityReportFile: z // New parameter
+				.string()
+				.optional()
+				.describe(
+					'Path to the complexity report file, relative to project root. Overrides configured path.'
 				)
 		}),
 		execute: withNormalizedProjectRoot(async (args, { log, session }) => {
@@ -86,7 +92,8 @@ export function registerExpandAllTool(server) {
 						research: args.research,
 						prompt: args.prompt,
 						force: args.force,
-						projectRoot: args.projectRoot
+						projectRoot: args.projectRoot,
+						complexityReportFile: args.complexityReportFile // Pass new arg
 					},
 					log,
 					{ session }

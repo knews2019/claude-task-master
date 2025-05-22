@@ -86,6 +86,9 @@ const DEFAULT_CONFIG = {
 		defaultPriority: 'medium',
 		projectName: 'Task Master',
 		ollamaBaseUrl: 'http://localhost:11434/api'
+	},
+	paths: {
+		complexityReport: 'scripts/task-complexity-report.json'
 	}
 };
 
@@ -345,7 +348,8 @@ describe('getConfig Tests', () => {
 					...VALID_CUSTOM_CONFIG.models.fallback
 				}
 			},
-			global: { ...DEFAULT_CONFIG.global, ...VALID_CUSTOM_CONFIG.global }
+			global: { ...DEFAULT_CONFIG.global, ...VALID_CUSTOM_CONFIG.global },
+			paths: { ...DEFAULT_CONFIG.paths, ...VALID_CUSTOM_CONFIG.paths } // Ensure paths are merged
 		};
 		expect(config).toEqual(expectedMergedConfig);
 		expect(fsExistsSyncSpy).toHaveBeenCalledWith(MOCK_CONFIG_PATH);
@@ -383,7 +387,8 @@ describe('getConfig Tests', () => {
 				research: { ...DEFAULT_CONFIG.models.research },
 				fallback: { ...DEFAULT_CONFIG.models.fallback }
 			},
-			global: { ...DEFAULT_CONFIG.global, ...PARTIAL_CONFIG.global }
+			global: { ...DEFAULT_CONFIG.global, ...PARTIAL_CONFIG.global },
+			paths: { ...DEFAULT_CONFIG.paths, ...PARTIAL_CONFIG.paths } // Ensure paths are merged
 		};
 		expect(config).toEqual(expectedMergedConfig);
 		expect(fsReadFileSyncSpy).toHaveBeenCalledWith(MOCK_CONFIG_PATH, 'utf-8');
@@ -412,9 +417,41 @@ describe('getConfig Tests', () => {
 		const config = configManager.getConfig(MOCK_PROJECT_ROOT, true);
 
 		// Assert
-		expect(config).toEqual(DEFAULT_CONFIG);
+		expect(config).toEqual(DEFAULT_CONFIG); // Includes default paths
 		expect(consoleErrorSpy).toHaveBeenCalledWith(
 			expect.stringContaining('Error reading or parsing')
+		);
+	});
+
+	test('should correctly merge paths if user config has paths but not complexityReport', () => {
+		// Arrange
+		const userConfigWithPartialPaths = {
+			paths: { someOtherPath: 'user/specific/other.json' }
+		};
+		fsReadFileSyncSpy.mockImplementation((filePath) => {
+			if (filePath === MOCK_CONFIG_PATH)
+				return JSON.stringify(userConfigWithPartialPaths);
+			if (path.basename(filePath) === 'supported-models.json') {
+				return REAL_SUPPORTED_MODELS_CONTENT;
+			}
+			throw new Error(`Unexpected fs.readFileSync call: ${filePath}`);
+		});
+		fsExistsSyncSpy.mockReturnValue(true);
+
+		// Act
+		const config = configManager.getConfig(MOCK_PROJECT_ROOT, true);
+
+		// Assert
+		const expectedPaths = {
+			...DEFAULT_CONFIG.paths,
+			...userConfigWithPartialPaths.paths
+		};
+		expect(config.paths).toEqual(expectedPaths);
+		expect(config.paths.complexityReport).toEqual(
+			DEFAULT_CONFIG.paths.complexityReport
+		);
+		expect(config.paths.someOtherPath).toEqual(
+			userConfigWithPartialPaths.paths.someOtherPath
 		);
 	});
 
@@ -442,7 +479,7 @@ describe('getConfig Tests', () => {
 		const config = configManager.getConfig(MOCK_PROJECT_ROOT, true);
 
 		// Assert
-		expect(config).toEqual(DEFAULT_CONFIG);
+		expect(config).toEqual(DEFAULT_CONFIG); // Includes default paths
 		expect(consoleErrorSpy).toHaveBeenCalledWith(
 			expect.stringContaining(`Permission denied. Using default configuration.`)
 		);
@@ -487,7 +524,8 @@ describe('getConfig Tests', () => {
 				},
 				fallback: { ...DEFAULT_CONFIG.models.fallback }
 			},
-			global: { ...DEFAULT_CONFIG.global, ...INVALID_PROVIDER_CONFIG.global }
+			global: { ...DEFAULT_CONFIG.global, ...INVALID_PROVIDER_CONFIG.global },
+			paths: { ...DEFAULT_CONFIG.paths } // Ensure default paths are present
 		};
 		expect(config).toEqual(expectedMergedConfig);
 	});
@@ -495,23 +533,31 @@ describe('getConfig Tests', () => {
 
 // --- writeConfig Tests ---
 describe('writeConfig', () => {
-	test('should write valid config to file', () => {
-		// Arrange (Default mocks are sufficient)
-		// findProjectRoot mock set in beforeEach
-		fsWriteFileSyncSpy.mockImplementation(() => {}); // Ensure it doesn't throw
+	test('should write valid config including paths to file', () => {
+		// Arrange
+		const configToWrite = {
+			...VALID_CUSTOM_CONFIG,
+			paths: {
+				complexityReport: 'custom/written/path.json',
+				anotherPath: 'foo/bar.txt'
+			}
+		};
+		fsWriteFileSyncSpy.mockImplementation(() => {});
 
 		// Act
-		const success = configManager.writeConfig(
-			VALID_CUSTOM_CONFIG,
-			MOCK_PROJECT_ROOT
-		);
+		const success = configManager.writeConfig(configToWrite, MOCK_PROJECT_ROOT);
 
 		// Assert
 		expect(success).toBe(true);
 		expect(fsWriteFileSyncSpy).toHaveBeenCalledWith(
 			MOCK_CONFIG_PATH,
-			JSON.stringify(VALID_CUSTOM_CONFIG, null, 2) // writeConfig stringifies
+			JSON.stringify(configToWrite, null, 2)
 		);
+		const writtenData = JSON.parse(fsWriteFileSyncSpy.mock.calls[0][1]);
+		expect(writtenData.paths.complexityReport).toBe(
+			'custom/written/path.json'
+		);
+		expect(writtenData.paths.anotherPath).toBe('foo/bar.txt');
 		expect(consoleErrorSpy).not.toHaveBeenCalled();
 	});
 
@@ -621,6 +667,110 @@ describe('Getter Functions', () => {
 	});
 
 	// Add more tests for other getters (getResearchProvider, getProjectName, etc.)
+});
+
+// --- Path Getter Functions ---
+describe('getComplexityReportPath', () => {
+	test('should return default path if config file does not exist', () => {
+		fsExistsSyncSpy.mockReturnValue(false);
+		const reportPath = configManager.getComplexityReportPath(MOCK_PROJECT_ROOT);
+		expect(reportPath).toBe(DEFAULT_CONFIG.paths.complexityReport);
+		expect(consoleWarnSpy).toHaveBeenCalledWith(
+			expect.stringContaining('not found at provided project root')
+		);
+	});
+
+	test('should return default path if config exists but paths object is missing', () => {
+		fsExistsSyncSpy.mockReturnValue(true);
+		fsReadFileSyncSpy.mockImplementation((filePath) => {
+			if (filePath === MOCK_CONFIG_PATH)
+				return JSON.stringify({ models: {}, global: {} }); // No paths object
+			if (path.basename(filePath) === 'supported-models.json')
+				return REAL_SUPPORTED_MODELS_CONTENT;
+			throw new Error(`Unexpected read: ${filePath}`);
+		});
+		const reportPath = configManager.getComplexityReportPath(MOCK_PROJECT_ROOT);
+		expect(reportPath).toBe(DEFAULT_CONFIG.paths.complexityReport);
+	});
+
+	test('should return default path if paths object exists but complexityReport key is missing', () => {
+		fsExistsSyncSpy.mockReturnValue(true);
+		fsReadFileSyncSpy.mockImplementation((filePath) => {
+			if (filePath === MOCK_CONFIG_PATH)
+				return JSON.stringify({
+					models: {},
+					global: {},
+					paths: { other: 'test.json' }
+				});
+			if (path.basename(filePath) === 'supported-models.json')
+				return REAL_SUPPORTED_MODELS_CONTENT;
+			throw new Error(`Unexpected read: ${filePath}`);
+		});
+		const reportPath = configManager.getComplexityReportPath(MOCK_PROJECT_ROOT);
+		expect(reportPath).toBe(DEFAULT_CONFIG.paths.complexityReport);
+	});
+
+	test('should return custom path from config if present', () => {
+		const customPath = 'custom/reports/complexity.json';
+		fsExistsSyncSpy.mockReturnValue(true);
+		fsReadFileSyncSpy.mockImplementation((filePath) => {
+			if (filePath === MOCK_CONFIG_PATH)
+				return JSON.stringify({
+					models: {},
+					global: {},
+					paths: { complexityReport: customPath }
+				});
+			if (path.basename(filePath) === 'supported-models.json')
+				return REAL_SUPPORTED_MODELS_CONTENT;
+			throw new Error(`Unexpected read: ${filePath}`);
+		});
+		const reportPath = configManager.getComplexityReportPath(MOCK_PROJECT_ROOT);
+		expect(reportPath).toBe(customPath);
+	});
+
+	test('should use findProjectRoot and return default if explicitRoot is null and config not found', () => {
+		mockFindProjectRoot.mockReturnValue('/another/mock/root');
+		const anotherMockConfigPath = path.join(
+			'/another/mock/root',
+			'.taskmasterconfig'
+		);
+		fsExistsSyncSpy.mockImplementation((p) => p !== anotherMockConfigPath); // Config not found at this new root
+
+		const reportPath = configManager.getComplexityReportPath(null, true); // Force reload, no explicit root
+
+		expect(mockFindProjectRoot).toHaveBeenCalled();
+		expect(fsExistsSyncSpy).toHaveBeenCalledWith(anotherMockConfigPath);
+		expect(reportPath).toBe(DEFAULT_CONFIG.paths.complexityReport);
+		expect(consoleWarnSpy).toHaveBeenCalledWith(
+			expect.stringContaining('not found at derived root')
+		);
+	});
+
+	test('should use explicitRoot and return custom path if config found there', () => {
+		const explicitTestRoot = '/explicit/test/root';
+		const explicitConfigPath = path.join(explicitTestRoot, '.taskmasterconfig');
+		const customPath = 'explicit_custom/path.json';
+
+		mockFindProjectRoot.mockReturnValue(null); // Should not be called
+		fsExistsSyncSpy.mockImplementation((p) => p === explicitConfigPath);
+		fsReadFileSyncSpy.mockImplementation((filePath) => {
+			if (filePath === explicitConfigPath)
+				return JSON.stringify({ paths: { complexityReport: customPath } });
+			if (path.basename(filePath) === 'supported-models.json')
+				return REAL_SUPPORTED_MODELS_CONTENT;
+			throw new Error(`Unexpected read: ${filePath}`);
+		});
+
+		const reportPath = configManager.getComplexityReportPath(
+			explicitTestRoot,
+			true
+		); // Force reload
+
+		expect(mockFindProjectRoot).not.toHaveBeenCalled();
+		expect(fsExistsSyncSpy).toHaveBeenCalledWith(explicitConfigPath);
+		expect(fsReadFileSyncSpy).toHaveBeenCalledWith(explicitConfigPath, 'utf-8');
+		expect(reportPath).toBe(customPath);
+	});
 });
 
 // --- isConfigFilePresent Tests ---

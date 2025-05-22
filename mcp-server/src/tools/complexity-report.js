@@ -9,7 +9,10 @@ import {
 	createErrorResponse,
 	withNormalizedProjectRoot
 } from './utils.js';
-import { complexityReportDirect } from '../core/task-master-core.js';
+import {
+	complexityReportDirect,
+	getCoreComplexityReportPath
+} from '../core/task-master-core.js';
 import path from 'path';
 
 /**
@@ -38,17 +41,19 @@ export function registerComplexityReportTool(server) {
 				);
 
 				// Use args.projectRoot directly (guaranteed by withNormalizedProjectRoot)
-				const reportPath = args.file
-					? path.resolve(args.projectRoot, args.file)
-					: path.resolve(
-							args.projectRoot,
-							'scripts',
-							'task-complexity-report.json'
-						);
+				let reportPathToUse;
+				if (args.file) {
+					reportPathToUse = path.resolve(args.projectRoot, args.file);
+				} else {
+					const defaultReportPath = getCoreComplexityReportPath(
+						args.projectRoot
+					);
+					reportPathToUse = path.resolve(args.projectRoot, defaultReportPath);
+				}
 
 				const result = await complexityReportDirect(
 					{
-						reportPath: reportPath
+						reportPath: reportPathToUse
 					},
 					log
 				);

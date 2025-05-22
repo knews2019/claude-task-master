@@ -12,7 +12,11 @@ import {
 
 import { generateTextService } from '../ai-services-unified.js';
 
-import { getDebugFlag, getProjectName } from '../config-manager.js';
+import {
+	getDebugFlag,
+	getProjectName,
+	getComplexityReportPath
+} from '../config-manager.js';
 
 /**
  * Generates the prompt for complexity analysis.
@@ -61,10 +65,11 @@ Do not include any explanatory text, markdown formatting, or code block markers 
 async function analyzeTaskComplexity(options, context = {}) {
 	const { session, mcpLog } = context;
 	const tasksPath = options.file || 'tasks/tasks.json';
-	const outputPath = options.output || 'scripts/task-complexity-report.json';
+	const projectRoot = options.projectRoot; // Keep projectRoot for other uses if any, or for getComplexityReportPath if session is not available
+	const outputPath =
+		options.output || getComplexityReportPath(session || projectRoot);
 	const thresholdScore = parseFloat(options.threshold || '5');
 	const useResearch = options.research || false;
-	const projectRoot = options.projectRoot;
 
 	const outputFormat = mcpLog ? 'json' : 'text';
 

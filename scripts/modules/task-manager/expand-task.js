@@ -1,8 +1,15 @@
-import fs from 'fs';
+import fs from 'fs'; // Still needed for other fs operations if any, or remove if not.
 import path from 'path';
 import { z } from 'zod';
 
-import { log, readJSON, writeJSON, isSilentMode } from '../utils.js';
+// Use readComplexityReport for consistency, ensure readJSON is kept if used elsewhere.
+import {
+	log,
+	readJSON,
+	writeJSON,
+	isSilentMode,
+	readComplexityReport
+} from '../utils.js';
 
 import {
 	startLoadingIndicator,
@@ -12,7 +19,11 @@ import {
 
 import { generateTextService } from '../ai-services-unified.js';
 
-import { getDefaultSubtasks, getDebugFlag } from '../config-manager.js';
+import {
+	getDefaultSubtasks,
+	getDebugFlag,
+	getComplexityReportPath
+} from '../config-manager.js';
 import generateTaskFiles from './generate-task-files.js';
 
 // --- Zod Schemas (Keep from previous step) ---
@@ -461,39 +472,41 @@ async function expandTask(
 		let promptContent = '';
 		let complexityReasoningContext = '';
 		let systemPrompt; // Declare systemPrompt here
-
-		const complexityReportPath = path.join(
-			projectRoot,
-			'scripts/task-complexity-report.json'
-		);
 		let taskAnalysis = null;
 
-		try {
-			if (fs.existsSync(complexityReportPath)) {
-				const complexityReport = readJSON(complexityReportPath);
-				taskAnalysis = complexityReport?.complexityAnalysis?.find(
-					(a) => a.taskId === task.id
+		// Determine the path for the complexity report
+		let actualComplexityReportPath;
+		if (context.complexityReportFile) { // If a specific file path is provided via options
+			actualComplexityReportPath = path.resolve(projectRoot, context.complexityReportFile);
+			logger.info(`Attempting to use provided complexity report path: ${actualComplexityReportPath}`);
+		} else {
+			// Use projectRoot (derived above) or session for config context
+			const configuredPath = getComplexityReportPath(projectRoot || session);
+			actualComplexityReportPath = path.resolve(projectRoot, configuredPath);
+			logger.info(`Attempting to use configured complexity report path: ${actualComplexityReportPath}`);
+		}
+
+		const complexityReport = readComplexityReport(actualComplexityReportPath); // Uses the refactored util
+
+		if (complexityReport) {
+			taskAnalysis = complexityReport.complexityAnalysis?.find(
+				(a) => a.taskId === task.id
+			);
+			if (taskAnalysis) {
+				logger.info(
+					`Found complexity analysis for task ${task.id}: Score ${taskAnalysis.complexityScore}`
 				);
-				if (taskAnalysis) {
-					logger.info(
-						`Found complexity analysis for task ${task.id}: Score ${taskAnalysis.complexityScore}`
-					);
-					if (taskAnalysis.reasoning) {
-						complexityReasoningContext = `\nComplexity Analysis Reasoning: ${taskAnalysis.reasoning}`;
-					}
-				} else {
-					logger.info(
-						`No complexity analysis found for task ${task.id} in report.`
-					);
+				if (taskAnalysis.reasoning) {
+					complexityReasoningContext = `\nComplexity Analysis Reasoning: ${taskAnalysis.reasoning}`;
 				}
 			} else {
 				logger.info(
-					`Complexity report not found at ${complexityReportPath}. Skipping complexity check.`
+					`No specific analysis found for task ${task.id} in report at ${actualComplexityReportPath}.`
 				);
 			}
-		} catch (reportError) {
-			logger.warn(
-				`Could not read or parse complexity report: ${reportError.message}. Proceeding without it.`
+		} else {
+			logger.info(
+				`Complexity report not found or failed to load from ${actualComplexityReportPath}. Proceeding without it.`
 			);
 		}
 

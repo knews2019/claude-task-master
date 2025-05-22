@@ -31,11 +31,21 @@ import { removeTaskDirect } from './direct-functions/remove-task.js';
 import { initializeProjectDirect } from './direct-functions/initialize-project.js';
 import { modelsDirect } from './direct-functions/models.js';
 
+// Import config functions
+import { getComplexityReportPath } from '../../scripts/modules/config-manager.js';
+
 // Re-export utility functions
 export { findTasksJsonPath } from './utils/path-utils.js';
 
+// --- Core function for complexity report path ---
+export function getCoreComplexityReportPath(projectRoot) {
+	// The original getComplexityReportPath expects an explicitRoot, which corresponds to projectRoot here.
+	return getComplexityReportPath(projectRoot);
+}
+
 // Use Map for potential future enhancements like introspection or dynamic dispatch
 export const directFunctions = new Map([
+	['getCoreComplexityReportPath', getCoreComplexityReportPath],
 	['listTasksDirect', listTasksDirect],
 	['getCacheStatsDirect', getCacheStatsDirect],
 	['parsePRDDirect', parsePRDDirect],
@@ -65,6 +75,7 @@ export const directFunctions = new Map([
 
 // Re-export all direct function implementations
 export {
+	getCoreComplexityReportPath, // Export the new function
 	listTasksDirect,
 	getCacheStatsDirect,
 	parsePRDDirect,

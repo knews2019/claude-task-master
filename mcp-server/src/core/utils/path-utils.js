@@ -339,6 +339,8 @@ export function findPRDDocumentPath(projectRoot, explicitPath, log) {
 	return null;
 }
 
+import { getComplexityReportPath } from '../../../scripts/modules/config-manager.js'; // Added import
+
 export function findComplexityReportPath(projectRoot, explicitPath, log) {
 	// If explicit path is provided, check if it exists
 	if (explicitPath) {
@@ -347,38 +349,57 @@ export function findComplexityReportPath(projectRoot, explicitPath, log) {
 			: path.resolve(projectRoot, explicitPath);
 
 		if (fs.existsSync(fullPath)) {
-			log.info(`Using provided PRD document path: ${fullPath}`);
+			log.info(`Using provided complexity report path: ${fullPath}`);
 			return fullPath;
 		} else {
 			log.warn(
-				`Provided PRD document path not found: ${fullPath}, will search for alternatives`
+				`Provided complexity report path not found: ${fullPath}. Checking configured path.`
 			);
+			// Fall through to check configured path even if explicitPath was given but not found
 		}
 	}
 
-	// Common locations and file patterns for PRD documents
+	// Try the path from config-manager.js
+	// Ensure projectRoot is valid before calling, otherwise getComplexityReportPath might use process.cwd()
+	if (projectRoot) {
+		const configuredReportName = getComplexityReportPath(projectRoot); // This gives relative path from config
+		const configuredFullPath = path.resolve(projectRoot, configuredReportName);
+		if (fs.existsSync(configuredFullPath)) {
+			log.info(`Using configured complexity report path: ${configuredFullPath}`);
+			return configuredFullPath;
+		} else {
+			log.warn(
+				`Configured complexity report path not found: ${configuredFullPath}. Searching common locations.`
+			);
+		}
+	} else {
+		log.warn('Project root not available to findComplexityReportPath, cannot check configured path. Searching common locations.');
+	}
+
+
+	// Common locations and file patterns as a fallback
 	const commonLocations = [
 		'', // Project root
 		'scripts/'
 	];
 
 	const commonFileNames = [
-		'complexity-report.json',
-		'task-complexity-report.json'
+		// 'complexity-report.json', // Prefer the one from config if possible
+		'task-complexity-report.json' // This is the default name in config-manager
 	];
 
 	// Check all possible combinations
 	for (const location of commonLocations) {
 		for (const fileName of commonFileNames) {
-			const potentialPath = path.join(projectRoot, location, fileName);
+			const potentialPath = path.join(projectRoot || process.cwd(), location, fileName); // Fallback to cwd if projectRoot is null
 			if (fs.existsSync(potentialPath)) {
-				log.info(`Found PRD document at: ${potentialPath}`);
+				log.info(`Found complexity report in common location: ${potentialPath}`);
 				return potentialPath;
 			}
 		}
 	}
 
-	log.warn(`No PRD document found in common locations within ${projectRoot}`);
+	log.warn(`No complexity report found in common locations within ${projectRoot || process.cwd()}`);
 	return null;
 }
 
