@@ -13,7 +13,7 @@ import {
 
 import { generateTextService } from '../ai-services-unified.js';
 
-import { getDebugFlag, getProjectName, getComplexityReportConfigPath } from '../config-manager.js';
+import { getDebugFlag, getProjectName } from '../config-manager.js'; // Removed getComplexityReportConfigPath
 
 /**
  * Generates the prompt for complexity analysis.
@@ -71,17 +71,11 @@ async function analyzeTaskComplexity(options, context = {}) {
 	// 3. Determine outputPath
 	let outputPath;
 	if (options.output) {
-		// If --output is provided, it's resolved relative to the CWD (standard behavior for CLI flags)
-		// or it could be an absolute path.
+		// If --output is provided, it's resolved relative to CWD or used if absolute.
 		outputPath = path.resolve(options.output);
 	} else {
-		const configuredReportPath = getComplexityReportConfigPath(establishedProjectRoot);
-		if (configuredReportPath) {
-			outputPath = path.resolve(establishedProjectRoot, configuredReportPath);
-		} else {
-			// Default path is 'scripts/task-complexity-report.json', relative to projectRoot
-			outputPath = path.resolve(establishedProjectRoot, 'scripts/task-complexity-report.json');
-		}
+		// Default output path is 'scripts/task-complexity-report.json', relative to projectRoot
+		outputPath = path.resolve(establishedProjectRoot, 'scripts/task-complexity-report.json');
 	}
 
 	const thresholdScore = parseFloat(options.threshold || '5');

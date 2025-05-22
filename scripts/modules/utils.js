@@ -624,5 +624,47 @@ export {
 	addComplexityToTask,
 	resolveEnvVariable,
 	findProjectRoot,
-	aggregateTelemetry
+	aggregateTelemetry,
+	findComplexityReport // Added findComplexityReport
 };
+
+// --- Complexity Report Finding Utility ---
+/**
+ * Finds the complexity report file.
+ * Priority:
+ * 1. explicitPath (if provided and exists, resolved from CWD)
+ * 2. 'scripts/task-complexity-report.json' (relative to projectRoot)
+ * 3. 'tasks/task-complexity-report.json' (relative to projectRoot)
+ * @param {string} projectRoot - The project root directory.
+ * @param {string|null} [explicitPath=null] - An explicit path to the report file.
+ * @returns {string|null} The path to the complexity report, or null if not found.
+ */
+export function findComplexityReport(projectRoot, explicitPath = null) {
+	if (explicitPath) {
+		// Resolve explicitPath relative to CWD if not absolute
+		const resolvedPath = path.resolve(explicitPath);
+		if (fs.existsSync(resolvedPath)) {
+			return resolvedPath;
+		} else {
+			// User specified a path, but it wasn't found.
+			return null;
+		}
+	} else {
+		// No explicit path, try default locations relative to projectRoot
+		if (!projectRoot) { // Guard against missing projectRoot
+			// log('warn', 'findComplexityReport: projectRoot is null or undefined.'); // Optional: use log utility if available/desired
+			return null;
+		}
+		const scriptsPath = path.resolve(projectRoot, 'scripts/task-complexity-report.json');
+		if (fs.existsSync(scriptsPath)) {
+			return scriptsPath;
+		}
+
+		const tasksPath = path.resolve(projectRoot, 'tasks/task-complexity-report.json');
+		if (fs.existsSync(tasksPath)) {
+			return tasksPath;
+		}
+
+		return null; // Not found in any default location
+	}
+}

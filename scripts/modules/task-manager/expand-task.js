@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
 
-import { log, readJSON, writeJSON, isSilentMode } from '../utils.js';
+import { log, readJSON, writeJSON, isSilentMode, findComplexityReport } from '../utils.js'; // Added findComplexityReport
 
 import {
 	startLoadingIndicator,
@@ -12,7 +12,7 @@ import {
 
 import { generateTextService } from '../ai-services-unified.js';
 
-import { getDefaultSubtasks, getDebugFlag, getComplexityReportConfigPath } from '../config-manager.js';
+import { getDefaultSubtasks, getDebugFlag } from '../config-manager.js'; // Removed getComplexityReportConfigPath
 import generateTaskFiles from './generate-task-files.js';
 
 // --- Zod Schemas (Keep from previous step) ---
@@ -462,43 +462,34 @@ async function expandTask(
 		let complexityReasoningContext = '';
 		let systemPrompt; // Declare systemPrompt here
 
-		let complexityReportPath;
-		const configuredReportPath = getComplexityReportConfigPath(projectRoot);
-		if (configuredReportPath) {
-			complexityReportPath = path.resolve(projectRoot, configuredReportPath);
-		} else {
-			complexityReportPath = path.resolve(projectRoot, 'scripts/task-complexity-report.json');
-		}
-
+		const complexityReportPath = findComplexityReport(projectRoot, null);
 		let taskAnalysis = null;
 
-		try {
-			if (fs.existsSync(complexityReportPath)) {
+		if (complexityReportPath && fs.existsSync(complexityReportPath)) {
+			try {
 				const complexityReport = readJSON(complexityReportPath);
 				taskAnalysis = complexityReport?.complexityAnalysis?.find(
 					(a) => a.taskId === task.id
 				);
 				if (taskAnalysis) {
 					logger.info(
-						`Found complexity analysis for task ${task.id}: Score ${taskAnalysis.complexityScore}`
+						`Found complexity analysis for task ${task.id} in ${complexityReportPath}: Score ${taskAnalysis.complexityScore}`
 					);
 					if (taskAnalysis.reasoning) {
 						complexityReasoningContext = `\nComplexity Analysis Reasoning: ${taskAnalysis.reasoning}`;
 					}
 				} else {
 					logger.info(
-						`No complexity analysis found for task ${task.id} in report.`
+						`No complexity analysis found for task ${task.id} in report: ${complexityReportPath}`
 					);
 				}
-			} else {
-				logger.info(
-					`Complexity report not found at ${complexityReportPath}. Skipping complexity check.`
+			} catch (reportError) {
+				logger.warn(
+					`Could not read or parse complexity report at ${complexityReportPath}: ${reportError.message}. Proceeding without it.`
 				);
 			}
-		} catch (reportError) {
-			logger.warn(
-				`Could not read or parse complexity report: ${reportError.message}. Proceeding without it.`
-			);
+		} else {
+			logger.info(`Complexity report not found in default locations (scripts/ or tasks/). Proceeding without it.`);
 		}
 
 		// Determine final subtask count
