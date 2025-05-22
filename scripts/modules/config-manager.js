@@ -62,6 +62,9 @@ const DEFAULTS = {
 		defaultPriority: 'medium',
 		projectName: 'Task Master',
 		ollamaBaseUrl: 'http://localhost:11434/api'
+	},
+	paths: {
+		complexityReport: 'scripts/task-complexity-report.json'
 	}
 };
 
@@ -121,7 +124,8 @@ function _loadAndValidateConfig(explicitRoot = null) {
 							? { ...defaults.models.fallback, ...parsedConfig.models.fallback }
 							: { ...defaults.models.fallback }
 				},
-				global: { ...defaults.global, ...parsedConfig?.global }
+				global: { ...defaults.global, ...parsedConfig?.global },
+				paths: { ...defaults.paths, ...parsedConfig?.paths }
 			};
 			configSource = `file (${configPath})`; // Update source info
 
@@ -705,6 +709,14 @@ function getAllProviders() {
 	return Object.keys(MODEL_MAP || {});
 }
 
+function getComplexityReportConfigPath(explicitRoot = null) {
+	const config = getConfig(explicitRoot);
+	if (config?.paths?.complexityReport && typeof config.paths.complexityReport === 'string' && config.paths.complexityReport.trim() !== '') {
+		return config.paths.complexityReport;
+	}
+	return null;
+}
+
 function getBaseUrlForRole(role, explicitRoot = null) {
 	const roleConfig = getModelConfigForRole(role, explicitRoot);
 	return roleConfig && typeof roleConfig.baseUrl === 'string'
@@ -756,5 +768,6 @@ export {
 	getMcpApiKeyStatus,
 
 	// ADD: Function to get all provider names
-	getAllProviders
+	getAllProviders,
+	getComplexityReportConfigPath
 };

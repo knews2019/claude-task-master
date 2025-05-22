@@ -1,8 +1,9 @@
 import chalk from 'chalk';
 import boxen from 'boxen';
 import readline from 'readline';
+import path from 'path'; // Ensure path module is imported
 
-import { log, readJSON, writeJSON, isSilentMode } from '../utils.js';
+import { log, readJSON, writeJSON, isSilentMode, findProjectRoot } from '../utils.js';
 
 import {
 	startLoadingIndicator,
@@ -12,7 +13,7 @@ import {
 
 import { generateTextService } from '../ai-services-unified.js';
 
-import { getDebugFlag, getProjectName } from '../config-manager.js';
+import { getDebugFlag, getProjectName, getComplexityReportConfigPath } from '../config-manager.js';
 
 /**
  * Generates the prompt for complexity analysis.
@@ -60,11 +61,32 @@ Do not include any explanatory text, markdown formatting, or code block markers 
  */
 async function analyzeTaskComplexity(options, context = {}) {
 	const { session, mcpLog } = context;
-	const tasksPath = options.file || 'tasks/tasks.json';
-	const outputPath = options.output || 'scripts/task-complexity-report.json';
+
+	// 1. Determine projectRoot
+	const establishedProjectRoot = options.projectRoot || findProjectRoot();
+
+	// 2. Resolve tasksPath
+	const tasksPath = path.resolve(establishedProjectRoot, options.file || 'tasks/tasks.json');
+
+	// 3. Determine outputPath
+	let outputPath;
+	if (options.output) {
+		// If --output is provided, it's resolved relative to the CWD (standard behavior for CLI flags)
+		// or it could be an absolute path.
+		outputPath = path.resolve(options.output);
+	} else {
+		const configuredReportPath = getComplexityReportConfigPath(establishedProjectRoot);
+		if (configuredReportPath) {
+			outputPath = path.resolve(establishedProjectRoot, configuredReportPath);
+		} else {
+			// Default path is 'scripts/task-complexity-report.json', relative to projectRoot
+			outputPath = path.resolve(establishedProjectRoot, 'scripts/task-complexity-report.json');
+		}
+	}
+
 	const thresholdScore = parseFloat(options.threshold || '5');
 	const useResearch = options.research || false;
-	const projectRoot = options.projectRoot;
+	// const projectRoot = options.projectRoot; // This is now establishedProjectRoot
 
 	const outputFormat = mcpLog ? 'json' : 'text';
 
@@ -143,7 +165,7 @@ async function analyzeTaskComplexity(options, context = {}) {
 					generatedAt: new Date().toISOString(),
 					tasksAnalyzed: 0,
 					thresholdScore: thresholdScore,
-					projectName: getProjectName(session),
+					projectName: getProjectName(establishedProjectRoot),
 					usedResearch: useResearch
 				},
 				complexityAnalysis: []
@@ -221,7 +243,7 @@ async function analyzeTaskComplexity(options, context = {}) {
 				systemPrompt,
 				role,
 				session,
-				projectRoot,
+				projectRoot: establishedProjectRoot,
 				commandName: 'analyze-complexity',
 				outputType: mcpLog ? 'mcp' : 'cli'
 			});
@@ -264,7 +286,7 @@ async function analyzeTaskComplexity(options, context = {}) {
 					}
 				}
 
-				if (outputFormat === 'text' && getDebugFlag(session)) {
+				if (outputFormat === 'text' && getDebugFlag(establishedProjectRoot)) {
 					console.log(chalk.gray('Attempting to parse cleaned JSON...'));
 					console.log(chalk.gray('Cleaned response (first 100 chars):'));
 					console.log(chalk.gray(cleanedResponse.substring(0, 100)));
@@ -331,7 +353,7 @@ async function analyzeTaskComplexity(options, context = {}) {
 					generatedAt: new Date().toISOString(),
 					tasksAnalyzed: tasksData.tasks.length,
 					thresholdScore: thresholdScore,
-					projectName: getProjectName(session),
+					projectName: getProjectName(establishedProjectRoot),
 					usedResearch: useResearch
 				},
 				complexityAnalysis: complexityAnalysis
@@ -394,7 +416,7 @@ async function analyzeTaskComplexity(options, context = {}) {
 					)
 				);
 
-				if (getDebugFlag(session)) {
+				if (getDebugFlag(establishedProjectRoot)) {
 					console.debug(
 						chalk.gray(
 							`Final analysis object: ${JSON.stringify(report, null, 2)}`
@@ -437,7 +459,7 @@ async function analyzeTaskComplexity(options, context = {}) {
 			console.error(
 				chalk.red(`Error analyzing task complexity: ${error.message}`)
 			);
-			if (getDebugFlag(session)) {
+				if (getDebugFlag(establishedProjectRoot)) {
 				console.error(error);
 			}
 			process.exit(1);

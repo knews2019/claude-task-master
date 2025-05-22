@@ -12,7 +12,7 @@ import {
 
 import { generateTextService } from '../ai-services-unified.js';
 
-import { getDefaultSubtasks, getDebugFlag } from '../config-manager.js';
+import { getDefaultSubtasks, getDebugFlag, getComplexityReportConfigPath } from '../config-manager.js';
 import generateTaskFiles from './generate-task-files.js';
 
 // --- Zod Schemas (Keep from previous step) ---
@@ -462,10 +462,14 @@ async function expandTask(
 		let complexityReasoningContext = '';
 		let systemPrompt; // Declare systemPrompt here
 
-		const complexityReportPath = path.join(
-			projectRoot,
-			'scripts/task-complexity-report.json'
-		);
+		let complexityReportPath;
+		const configuredReportPath = getComplexityReportConfigPath(projectRoot);
+		if (configuredReportPath) {
+			complexityReportPath = path.resolve(projectRoot, configuredReportPath);
+		} else {
+			complexityReportPath = path.resolve(projectRoot, 'scripts/task-complexity-report.json');
+		}
+
 		let taskAnalysis = null;
 
 		try {

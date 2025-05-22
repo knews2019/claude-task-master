@@ -86,6 +86,9 @@ const DEFAULT_CONFIG = {
 		defaultPriority: 'medium',
 		projectName: 'Task Master',
 		ollamaBaseUrl: 'http://localhost:11434/api'
+	},
+	paths: {
+		complexityReport: 'scripts/task-complexity-report.json'
 	}
 };
 
@@ -345,7 +348,8 @@ describe('getConfig Tests', () => {
 					...VALID_CUSTOM_CONFIG.models.fallback
 				}
 			},
-			global: { ...DEFAULT_CONFIG.global, ...VALID_CUSTOM_CONFIG.global }
+			global: { ...DEFAULT_CONFIG.global, ...VALID_CUSTOM_CONFIG.global },
+			paths: { ...DEFAULT_CONFIG.paths, ...VALID_CUSTOM_CONFIG.paths } // Ensure paths are merged
 		};
 		expect(config).toEqual(expectedMergedConfig);
 		expect(fsExistsSyncSpy).toHaveBeenCalledWith(MOCK_CONFIG_PATH);
@@ -383,7 +387,8 @@ describe('getConfig Tests', () => {
 				research: { ...DEFAULT_CONFIG.models.research },
 				fallback: { ...DEFAULT_CONFIG.models.fallback }
 			},
-			global: { ...DEFAULT_CONFIG.global, ...PARTIAL_CONFIG.global }
+			global: { ...DEFAULT_CONFIG.global, ...PARTIAL_CONFIG.global },
+			paths: { ...DEFAULT_CONFIG.paths, ...PARTIAL_CONFIG.paths } // Ensure paths are merged
 		};
 		expect(config).toEqual(expectedMergedConfig);
 		expect(fsReadFileSyncSpy).toHaveBeenCalledWith(MOCK_CONFIG_PATH, 'utf-8');
@@ -487,7 +492,8 @@ describe('getConfig Tests', () => {
 				},
 				fallback: { ...DEFAULT_CONFIG.models.fallback }
 			},
-			global: { ...DEFAULT_CONFIG.global, ...INVALID_PROVIDER_CONFIG.global }
+			global: { ...DEFAULT_CONFIG.global, ...INVALID_PROVIDER_CONFIG.global },
+			paths: { ...DEFAULT_CONFIG.paths, ...INVALID_PROVIDER_CONFIG.paths } // Ensure paths are merged
 		};
 		expect(config).toEqual(expectedMergedConfig);
 	});
@@ -668,3 +674,139 @@ describe('getAllProviders', () => {
 
 // Note: Tests for setMainModel, setResearchModel were removed as the functions were removed in the implementation.
 // If similar setter functions exist, add tests for them following the writeConfig pattern.
+
+// --- DEFAULTS tests ---
+describe('DEFAULTS', () => {
+	test('DEFAULTS.paths.complexityReport should be set correctly', () => {
+		// This test directly accesses the exported DEFAULTS object from config-manager
+		// which is not directly possible if DEFAULTS is not exported.
+		// Instead, we verify its effect through getConfig when no config file exists.
+		fsExistsSyncSpy.mockReturnValue(false);
+		const config = configManager.getConfig(MOCK_PROJECT_ROOT, true); // force reload
+		expect(config.paths.complexityReport).toBe(
+			'scripts/task-complexity-report.json'
+		);
+	});
+});
+
+// --- getComplexityReportConfigPath Tests ---
+describe('getComplexityReportConfigPath', () => {
+	test('Scenario 1: Config file does not exist', () => {
+		fsExistsSyncSpy.mockReturnValue(false);
+		const config = configManager.getConfig(MOCK_PROJECT_ROOT, true); // To ensure DEFAULTS are applied to internal state
+
+		expect(config.paths.complexityReport).toBe(
+			'scripts/task-complexity-report.json'
+		); // Default from merged config
+		expect(
+			configManager.getComplexityReportConfigPath(MOCK_PROJECT_ROOT)
+		).toBeNull(); // Getter should return null as it's not user-set
+		expect(consoleWarnSpy).toHaveBeenCalledWith(
+			expect.stringContaining(
+				'.taskmasterconfig not found at provided project root'
+			)
+		);
+	});
+
+	test('Scenario 2: Config file exists, no paths section', () => {
+		fsReadFileSyncSpy.mockImplementation((filePath) => {
+			if (filePath === MOCK_CONFIG_PATH) return JSON.stringify({}); // Empty config
+			if (path.basename(filePath) === 'supported-models.json')
+				return REAL_SUPPORTED_MODELS_CONTENT;
+			throw new Error(`Unexpected read: ${filePath}`);
+		});
+		fsExistsSyncSpy.mockReturnValue(true);
+		const config = configManager.getConfig(MOCK_PROJECT_ROOT, true);
+
+		expect(config.paths.complexityReport).toBe(
+			'scripts/task-complexity-report.json'
+		); // Default
+		expect(
+			configManager.getComplexityReportConfigPath(MOCK_PROJECT_ROOT)
+		).toBeNull();
+	});
+
+	test('Scenario 3: Config file exists, paths section, but no complexityReport key', () => {
+		fsReadFileSyncSpy.mockImplementation((filePath) => {
+			if (filePath === MOCK_CONFIG_PATH)
+				return JSON.stringify({ paths: { someOtherPath: 'foo/bar' } });
+			if (path.basename(filePath) === 'supported-models.json')
+				return REAL_SUPPORTED_MODELS_CONTENT;
+			throw new Error(`Unexpected read: ${filePath}`);
+		});
+		fsExistsSyncSpy.mockReturnValue(true);
+		const config = configManager.getConfig(MOCK_PROJECT_ROOT, true);
+
+		expect(config.paths.complexityReport).toBe(
+			'scripts/task-complexity-report.json'
+		); // Default
+		expect(
+			configManager.getComplexityReportConfigPath(MOCK_PROJECT_ROOT)
+		).toBeNull();
+	});
+
+	test('Scenario 4: Config file exists, paths.complexityReport is valid', () => {
+		const customPath = 'custom/path/report.json';
+		fsReadFileSyncSpy.mockImplementation((filePath) => {
+			if (filePath === MOCK_CONFIG_PATH)
+				return JSON.stringify({ paths: { complexityReport: customPath } });
+			if (path.basename(filePath) === 'supported-models.json')
+				return REAL_SUPPORTED_MODELS_CONTENT;
+			throw new Error(`Unexpected read: ${filePath}`);
+		});
+		fsExistsSyncSpy.mockReturnValue(true);
+		const config = configManager.getConfig(MOCK_PROJECT_ROOT, true);
+
+		expect(config.paths.complexityReport).toBe(customPath);
+		expect(
+			configManager.getComplexityReportConfigPath(MOCK_PROJECT_ROOT)
+		).toBe(customPath);
+	});
+
+	test('Scenario 5: Config file exists, paths.complexityReport is empty string', () => {
+		fsReadFileSyncSpy.mockImplementation((filePath) => {
+			if (filePath === MOCK_CONFIG_PATH)
+				return JSON.stringify({ paths: { complexityReport: '' } });
+			if (path.basename(filePath) === 'supported-models.json')
+				return REAL_SUPPORTED_MODELS_CONTENT;
+			throw new Error(`Unexpected read: ${filePath}`);
+		});
+		fsExistsSyncSpy.mockReturnValue(true);
+		const config = configManager.getConfig(MOCK_PROJECT_ROOT, true);
+
+		// getConfig().paths.complexityReport will merge the empty string over the default
+		expect(config.paths.complexityReport).toBe('');
+		// The getter should treat an empty string as invalid and return null
+		expect(
+			configManager.getComplexityReportConfigPath(MOCK_PROJECT_ROOT)
+		).toBeNull();
+	});
+
+	test('Scenario 6: Explicit project root passed to getComplexityReportConfigPath', () => {
+		const customPath = 'specific/project/report.json';
+		const specificRoot = '/another/mock/root';
+		const specificConfigPath = path.join(specificRoot, '.taskmasterconfig');
+
+		fsReadFileSyncSpy.mockImplementation((filePath) => {
+			if (filePath === specificConfigPath)
+				return JSON.stringify({ paths: { complexityReport: customPath } });
+			if (path.basename(filePath) === 'supported-models.json')
+				return REAL_SUPPORTED_MODELS_CONTENT;
+			throw new Error(`Unexpected read: ${filePath}`);
+		});
+		fsExistsSyncSpy.mockImplementation(
+			(p) => p === specificConfigPath || p.endsWith('supported-models.json')
+		); // Only specific config and models exist
+
+		// Call getConfig first to potentially load models, then the specific getter
+		configManager.getConfig(specificRoot, true); // Load with specific root
+		const actualPath = configManager.getComplexityReportConfigPath(specificRoot);
+
+		expect(actualPath).toBe(customPath);
+		expect(fsExistsSyncSpy).toHaveBeenCalledWith(specificConfigPath);
+		expect(fsReadFileSyncSpy).toHaveBeenCalledWith(
+			specificConfigPath,
+			'utf-8'
+		);
+	});
+});

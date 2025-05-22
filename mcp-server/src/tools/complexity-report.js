@@ -11,6 +11,7 @@ import {
 } from './utils.js';
 import { complexityReportDirect } from '../core/task-master-core.js';
 import path from 'path';
+import { getComplexityReportConfigPath } from '../../../scripts/modules/config-manager.js';
 
 /**
  * Register the complexityReport tool with the MCP server
@@ -38,13 +39,21 @@ export function registerComplexityReportTool(server) {
 				);
 
 				// Use args.projectRoot directly (guaranteed by withNormalizedProjectRoot)
-				const reportPath = args.file
-					? path.resolve(args.projectRoot, args.file)
-					: path.resolve(
+				let reportPath;
+				if (args.file) {
+					reportPath = path.resolve(args.projectRoot, args.file);
+				} else {
+					const configuredPath = getComplexityReportConfigPath(args.projectRoot);
+					if (configuredPath) {
+						reportPath = path.resolve(args.projectRoot, configuredPath);
+					} else {
+						reportPath = path.resolve(
 							args.projectRoot,
 							'scripts',
 							'task-complexity-report.json'
 						);
+					}
+				}
 
 				const result = await complexityReportDirect(
 					{
