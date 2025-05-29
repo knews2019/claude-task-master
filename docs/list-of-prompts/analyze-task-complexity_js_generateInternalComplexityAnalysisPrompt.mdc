@@ -1,0 +1,19 @@
+Analyze the following tasks to determine their complexity (1-10 scale) and recommend the number of subtasks for expansion. Provide a brief reasoning and an initial expansion prompt for each.
+
+Tasks:
+${tasksString}
+
+Respond ONLY with a valid JSON array matching the schema:
+[
+  {
+    "taskId": <number>,
+    "taskTitle": "<string>",
+    "complexityScore": <number 1-10>,
+    "recommendedSubtasks": <number>,
+    "expansionPrompt": "<string>",
+    "reasoning": "<string>"
+  },
+  ...
+]
+
+Do not include any explanatory text, markdown formatting, or code block markers before or after the JSON array.

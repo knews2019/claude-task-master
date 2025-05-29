@@ -1,0 +1,15 @@
+Analyze the following task and break it down into exactly ${subtaskCount} specific subtasks using your research capabilities. Assign sequential IDs starting from ${nextSubtaskId}.
+
+Parent Task:
+ID: ${task.id}
+Title: ${task.title}
+Description: ${task.description}
+Current details: ${task.details || 'None'}
+${contextPrompt}
+
+CRITICAL: Respond ONLY with a valid JSON object containing a single key "subtasks". The value must be an array of the generated subtasks, strictly matching this structure:
+${schemaDescription}
+
+Important: For the 'dependencies' field, if a subtask has no dependencies, you MUST use an empty array, for example: "dependencies": []. Do not use null or omit the field.
+
+Do not include ANY explanatory text, markdown, or code block markers. Just the JSON object.

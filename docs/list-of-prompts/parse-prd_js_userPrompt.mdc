@@ -1,0 +1,20 @@
+Here's the Product Requirements Document (PRD) to break down into approximately ${numTasks} tasks, starting IDs from ${nextId}:${research ? '\n\nRemember to thoroughly research current best practices and technologies before task breakdown to provide specific, actionable implementation details.' : ''}\n\n${prdContent}\n\n
+
+		Return your response in this format:
+{
+	"tasks": [
+		{
+			"id": 1,
+			"title": "Setup Project Repository",
+			"description": "...",
+			...
+		},
+		...
+	],
+	"metadata": {
+		"projectName": "PRD Implementation",
+		"totalTasks": ${numTasks},
+		"sourceFile": "${prdPath}",
+		"generatedAt": "YYYY-MM-DD"
+	}
+}

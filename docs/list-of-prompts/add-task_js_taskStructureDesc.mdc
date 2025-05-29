@@ -1,0 +1,7 @@
+      {
+        "title": "Task title goes here",
+        "description": "A concise one or two sentence description of what the task involves",
+    "details": "Detailed implementation steps, considerations, code examples, or technical approach",
+    "testStrategy": "Specific steps to verify correct implementation and functionality",
+    "dependencies": [1, 3] // Example: IDs of tasks that must be completed before this task
+  }

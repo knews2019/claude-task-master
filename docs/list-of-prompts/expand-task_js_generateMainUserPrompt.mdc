@@ -1,0 +1,10 @@
+Break down this task into exactly ${subtaskCount} specific subtasks:
+
+Task ID: ${task.id}
+Title: ${task.title}
+Description: ${task.description}
+Current details: ${task.details || 'None'}
+${contextPrompt}
+
+Return ONLY the JSON object containing the "subtasks" array, matching this structure:
+${schemaDescription}

@@ -1,0 +1,11 @@
+You are generating the details for Task #${newTaskId}. Based on the user's request: "${prompt}", create a comprehensive new task for a software development project.
+      
+      ${contextTasks}
+      ${contextFromArgs ? `\nConsider these additional details provided by the user:${contextFromArgs}` : ''}
+      
+      Based on the information about existing tasks provided above, include appropriate dependencies in the "dependencies" array. Only include task IDs that this new task directly depends on.
+      
+      Return your answer as a single JSON object matching the schema precisely:
+      ${taskStructureDesc}
+      
+      Make sure the details and test strategy are comprehensive and specific. DO NOT include the task ID in the title.
